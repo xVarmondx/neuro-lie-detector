@@ -59,7 +59,7 @@ raw.plot(n_channels=30,  # Show 30 channels
 print(raw.annotations)
 
 # Plot Power Spectral Density
-mne.viz.plot_raw_psd(raw, fmin=0.1, fmax=50, average=True, verbose=False)
+mne.viz.plot_raw_psd(raw, fmin=0.1, fmax=125, average=True, verbose=False)
 
 # Plot events
 events, event_id = mne.events_from_annotations(raw, verbose=False)
