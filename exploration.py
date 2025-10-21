@@ -3,6 +3,10 @@ import pandas as pd
 import mne
 import numpy as np
 from matplotlib import pyplot as plt
+import warnings
+
+warnings.filterwarnings("ignore", category=RuntimeWarning, message="More events than default colors available.")
+warnings.filterwarnings("ignore", message="FigureCanvasAgg is non-interactive, and thus cannot be shown")
 
 DATA_FOLDER = "dataset"
 SURVEY_FILE = os.path.join(DATA_FOLDER, "Ankiety.xlsx")
@@ -22,6 +26,7 @@ print(df_survey.head())
 
 # Open sample EEG
 raw = mne.io.read_raw_fif(EXAMPLE_EEG_PATH, preload=True, verbose=False)
+raw.apply_function(lambda x: x*1e-6)
 
 print(f"\n------------------------Basic data information------------------------")
 print(raw.info)
