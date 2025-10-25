@@ -16,7 +16,9 @@ warnings.filterwarnings("ignore", message="FigureCanvasAgg is non-interactive, a
 DATA_FOLDER = "dataset"
 
 # We findind all subdirectories in the dataset folder. Subdirectories is the particinants
-participant_dirs = [d for d in os.listdir(DATA_FOLDER) if os.path.isdir(os.path.join(DATA_FOLDER, d))]
+#participant_dirs = [d for d in os.listdir(DATA_FOLDER) if os.path.isdir(os.path.join(DATA_FOLDER, d))]
+participant_dirs = [d for d in os.listdir(DATA_FOLDER) if os.path.isdir(os.path.join(DATA_FOLDER, d))
+                    if "popsute" not in d.lower() and "stare" not in d.lower()]
 print(f"Found {len(participant_dirs)} participant folders.")
 
 # Building event_id map. We need this map so that event IDs like PersonalDataField are consistent across all files.

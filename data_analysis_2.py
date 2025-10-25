@@ -18,13 +18,15 @@ UUID_COLUMN = 'UUID'
 GENDER_COLUMN = 'Płeć'
 
 # Find all participant directories
-participant_dirs = [d for d in os.listdir(DATA_FOLDER) if os.path.isdir(os.path.join(DATA_FOLDER, d))]
+#participant_dirs = [d for d in os.listdir(DATA_FOLDER) if os.path.isdir(os.path.join(DATA_FOLDER, d))]
+participant_dirs = [d for d in os.listdir(DATA_FOLDER) if os.path.isdir(os.path.join(DATA_FOLDER, d))
+                    if "popsute" not in d.lower() and "stare" not in d.lower()]
 print(f"Found {len(participant_dirs)} participant folders.")
 
 # Building event_id map. We need this map so that event IDs like PersonalDataField are consistent across all files.
 all_descriptions = set() # Set to store unique event descriptions
 
-# # Loop through each participant folder - collecting event descriptions
+# Loop through each participant folder - collecting event descriptions
 for participant_uuid in participant_dirs:
     participant_path = os.path.join(DATA_FOLDER, participant_uuid)
 
