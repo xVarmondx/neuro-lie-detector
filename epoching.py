@@ -4,10 +4,10 @@ import matplotlib.pyplot as plt
 from preprocessing import preprocessing
 
 # Cuts the continuous preprocessed EEG data into epochs around stimulus events
-def create_epochs(preprocessed_raw_data, tmin=-0.2, tmax=0.8):
+def create_epochs(preprocessed_raw_data, tmin=-0.2, tmax=0.8, master_event_id=None):
 
     # Find events from annotations selecting only stimulus-related ones
-    events, event_id = mne.events_from_annotations(preprocessed_raw_data, verbose=False)
+    events, event_id = mne.events_from_annotations(preprocessed_raw_data, event_id=master_event_id, verbose=False)
     stimulus_event_ids = {key: value for key, value in event_id.items() if 'PersonalDataField' in key}
 
     if not stimulus_event_ids:

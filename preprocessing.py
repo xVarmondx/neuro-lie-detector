@@ -26,6 +26,7 @@ EXAMPLE_EEG_FILENAME = "EEG_ExperimentBlock.HONEST_RESPONSE_TO_TRUE_IDENTITY_raw
 EXAMPLE_EEG_PATH = os.path.join(DATA_FOLDER, EXAMPLE_USER, EXAMPLE_EEG_FILENAME)
 
 raw = mne.io.read_raw_fif(EXAMPLE_EEG_PATH, preload=True, verbose=False)
+raw.apply_function(lambda x: x*1e-6)
 
 print("\n------------------------Data BEFORE preprocessing------------------------")
 print(f"Number of channels: {len(raw.ch_names)}")

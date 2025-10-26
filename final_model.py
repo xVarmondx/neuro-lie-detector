@@ -6,7 +6,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import RandomForestClassifier # Using Random Forest
+from sklearn.ensemble import RandomForestClassifier # We are using Random Forest
 from sklearn.pipeline import make_pipeline
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, ConfusionMatrixDisplay
 import warnings
@@ -17,7 +17,7 @@ from feature_extraction import extract_psd_features
 warnings.filterwarnings("ignore", message="Concatenation of Annotations within Epochs is not supported yet")
 warnings.filterwarnings("ignore", category=RuntimeWarning, message="More events than default colors available")
 warnings.filterwarnings("ignore", message="FigureCanvasAgg is non-interactive, and thus cannot be shown")
-# warnings.filterwarnings("ignore", message="pick_types() is a legacy function...") # Keep this commented unless needed
+# warnings.filterwarnings("ignore", message="pick_types() is a legacy function...")
 
 DATA_FOLDER = "dataset"
 SURVEY_FILE = os.path.join(DATA_FOLDER, "Ankiety.xlsx")
@@ -53,7 +53,7 @@ for participant_uuid in participant_dirs:
         except Exception as e:
             print(f"Skipped file {os.path.basename(f)}: {e}")
 
-# Create the final map {description: id} after collecting all descriptions
+# Created the final map {description: id} after collecting all descriptions
 master_event_id = {desc: i+1 for i, desc in enumerate(sorted(list(all_descriptions)))}
 print(f"Global map created with {len(master_event_id)} unique events")
 
