@@ -110,11 +110,20 @@ X_final = np.concatenate(all_X, axis=0)
 y_final = np.concatenate(all_y, axis=0)
 print(f"Final X shape: {X_final.shape}, Final y shape: {y_final.shape}")
 
-# Split data into training and testing sets: 70% train, 30% test
-X_train, X_test, y_train, y_test = train_test_split(
-    X_final, y_final, test_size=0.3, random_state=42, stratify=y_final
+# Split data into training and testing sets and test set(20%)
+X_temp, X_test, y_temp, y_test = train_test_split(
+    X_final, y_final, test_size=0.2, random_state=42, stratify=y_final
 )
+
+val_size_fraction = 0.25
+X_train, X_val, y_train, y_val = train_test_split(X_temp, y_temp, test_size=val_size_fraction, random_state=42, stratify=y_temp)
 print(f"Training set size: {X_train.shape[0]}, Test set size: {X_test.shape[0]}")
+print(f"Total samples: {len(X_final)}")
+print(f"Training set size:   {len(X_train)} ({len(X_train)/len(X_final)*100:.1f}%)")
+print(f"Validation set size: {len(X_val)} ({len(X_val)/len(X_final)*100:.1f}%)")
+print(f"Test set size:       {len(X_test)} ({len(X_test)/len(X_final)*100:.1f}%)")
+
+
 
 # Define the model pipeline (Scaler + Random Forest)
 model = make_pipeline(
@@ -126,19 +135,29 @@ model = make_pipeline(
 model.fit(X_train, y_train)
 
 # Make predictions on the unseen test data
-y_pred = model.predict(X_test)
+y_pred_val = model.predict(X_val)
+accuracy_val = accuracy_score(y_val, y_pred_val)
+print(f"Accuracy on Validation Set: {accuracy_val:.3f} ({accuracy_val*100:.1f}%)")
+print(classification_report(y_val, y_pred_val, target_names=['honest (0)', 'deceitful (1)']))
+cm_val = confusion_matrix(y_val, y_pred_val)
+disp_val = ConfusionMatrixDisplay(confusion_matrix=cm_val, display_labels=['honest', 'deceitful'])
 
-# Calculate accuracy
-accuracy = accuracy_score(y_test, y_pred)
+y_pred_test = model.predict(X_test)
+accuracy_test = accuracy_score(y_test, y_pred_test)
+print(f"\nFINAL ACCURACY (on Test Set): {accuracy_test:.3f} ({accuracy_test*100:.1f}%)")
+print(classification_report(y_test, y_pred_test, target_names=['honest (0)', 'deceitful (1)']))
+cm_test = confusion_matrix(y_test, y_pred_test)
+disp_test = ConfusionMatrixDisplay(confusion_matrix=cm_test, display_labels=['honest', 'deceitful'])
 
-print(f"\nFinal accuracy all participants: {accuracy:.3f} ({accuracy*100:.1f}%)")
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
-# Display detailed classification report
-print(classification_report(y_test, y_pred, target_names=['honest (0)', 'deceitful (1)']))
+# Plot validation matrix
+disp_val.plot(ax=axes[0])
+axes[0].set_title("Validation Set Confusion Matrix")
 
-# Display confusion matrix
-cm = confusion_matrix(y_test, y_pred)
-disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['honest', 'deceitful'])
-disp.plot()
-plt.title("Model ALL participants")
+# Plot test matrix
+disp_test.plot(ax=axes[1])
+axes[1].set_title("Test Set Confusion Matrix")
+
+plt.tight_layout() # Adjust layout to prevent overlap
 plt.show()
