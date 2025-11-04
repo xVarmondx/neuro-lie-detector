@@ -1,0 +1,61 @@
+# created by virtualenv automatically
+.venv/
+dataset/
+old/
+old1/
+# created by virtualenv automatically
+working/
+working2/
+__pycache__/
+.idea/
+train_copy.py
+.ipynb_checkpoints
+.idea
+train_history.json
+PyCharmMiscProject.iml
+best_model_weights.pth
+old_1/
+old_data_analysis/
+notebooks/notebook.ipynb
+exploration.py
+main.py
+preprocessing.py
+
+# Virtual environments
+venv/
+env/
+ENV/
+*.env
+src/train_history.json
+src/best_model_weights.pth
+
+# IDE / OS
+.vscode/
+.DS_Store
+Thumbs.db
+
+# PyCharm
+*.iml
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Jupyter / notebooks
+.ipynb_checkpoints/
+
+# Logs
+*.log
+
+# Test / coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+coverage.xml
+.cache/
+.pytest_cache/
+
+# Misc
+*.bak
