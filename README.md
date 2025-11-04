@@ -236,7 +236,7 @@ umożliwiając automatyczną klasyfikację reakcji mózgu w kategoriach **prawdy
 
 ## 4. Struktura repozytorium
 
-.
+```
 ├── dataset/                  # (Wymagany lokalnie) Folder na surowe dane EEG (.fif)
 ├── src/                      # Moduły Pythona zawierające logikę przetwarzania
 │   ├── analysys_utils.py     # Funkcje pomocnicze do analizy i ładowania danych
@@ -249,7 +249,7 @@ umożliwiając automatyczną klasyfikację reakcji mózgu w kategoriach **prawdy
 ├── final_model_cv.py         # Główny skrypt: trenuje model na wszystkich, używa Walidacji Krzyżowej (CV)
 ├── model_females_only.py     # Skrypt trenujący model tylko na kobietach (wynik analizy EDA)
 └── requirements.txt          # Lista zależności Pythona
-
+```
 
 ---
 
