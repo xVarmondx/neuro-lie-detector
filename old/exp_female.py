@@ -1,0 +1,176 @@
+import os
+import glob
+import numpy as np
+import mne
+import pandas as pd  # <-- NOWY IMPORT
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestClassifier  # Wracamy do Lasu Losowego
+from sklearn.pipeline import make_pipeline
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, ConfusionMatrixDisplay
+
+# Importujemy nasze sprawdzone funkcje
+from preprocessing import preprocessing
+from epoching import create_epochs
+from feature_extraction_freq import extract_psd_features
+
+
+# Klasa EEGDataLoader pozostaje bez zmian
+class EEGDataLoader:
+    """
+    A class to load, preprocess, and extract features from the entire EEG dataset.
+    """
+
+    def __init__(self, dataset_path):
+        self.dataset_path = dataset_path
+        # Na starcie wczytuje wszystkich uczestników
+        self.participants = [d for d in os.listdir(dataset_path) if os.path.isdir(os.path.join(dataset_path, d))]
+        print(f"Found {len(self.participants)} total participants in the dataset.")
+
+    def get_all_data(self):
+        """
+        Processes data for participants in self.participants list.
+        """
+        all_X = []
+        all_y = []
+
+        # Iteruje tylko po uczestnikach, którzy zostali na liście
+        for participant_uuid in self.participants:
+            print(f"\n--- Processing participant: {participant_uuid} ---")
+            participant_path = os.path.join(self.dataset_path, participant_uuid)
+
+            try:
+                honest_file = glob.glob(os.path.join(participant_path, "*HONEST*raw.fif"))[0]
+                deceitful_file = glob.glob(os.path.join(participant_path, "*DECEITFUL*raw.fif"))[0]
+            except IndexError:
+                print(f"Warning: Missing data files for participant {participant_uuid}. Skipping.")
+                continue
+
+            # Process honest file
+            X_honest = self._process_single_file(honest_file)
+            if X_honest is not None:
+                all_X.append(X_honest)
+                all_y.append(np.zeros(X_honest.shape[0]))  # Label 0 for honest
+
+            # Process deceitful file
+            X_deceitful = self._process_single_file(deceitful_file)
+            if X_deceitful is not None:
+                all_X.append(X_deceitful)
+                all_y.append(np.ones(X_deceitful.shape[0]))  # Label 1 for deceitful
+
+        X_final = np.concatenate(all_X, axis=0)
+        y_final = np.concatenate(all_y, axis=0)
+
+        return X_final, y_final
+
+    def _process_single_file(self, file_path):
+        """Helper function to run the full pipeline for one file."""
+        try:
+            raw = mne.io.read_raw_fif(file_path, preload=True, verbose=False)
+            preprocessed_raw = preprocessing(raw)
+            # Musimy mieć master_event_id, aby create_epochs działało poprawnie
+            # Na potrzeby tego skryptu zakładamy, że master_event_id jest zdefiniowane globalnie
+            # lub (prościej) `epoching.py` jest w wersji BEZ master_event_id
+            # Dla prostoty, wróćmy do wersji epoching BEZ master_event_id
+            # Założenie: używasz wersji epoching.py sprzed problemu z łączeniem
+
+            # Poprawka: załadujmy master_event_id z góry (tak jak w notatniku)
+            # To jest bardziej skomplikowane dla prostego skryptu.
+
+            # NAJPROSTSZE ROZWIĄZANIE:
+            # Zmodyfikujmy `epoching.py` z powrotem do wersji bez `master_event_id`
+            # Albo jeszcze lepiej - zmodyfikujmy `_process_single_file`, aby sam sobie stworzył mapę
+
+            events, event_id = mne.events_from_annotations(preprocessed_raw, verbose=False)
+            stimulus_event_ids = {k: v for k, v in event_id.items() if 'PersonalDataField' in k}
+
+            epochs = mne.Epochs(
+                preprocessed_raw,
+                events=events,
+                event_id=stimulus_event_ids,
+                tmin=-0.2, tmax=0.8,
+                preload=True, baseline=(-0.2, 0),
+                reject=None, verbose=False
+            )
+
+            if epochs and len(epochs) > 0:
+                X, _ = extract_psd_features(epochs)
+                return X
+            return None
+        except Exception as e:
+            print(f"Error processing file {os.path.basename(file_path)}: {e}")
+            return None
+
+
+if __name__ == '__main__':
+    DATA_FOLDER = "dataset"
+
+    # --- NOWA SEKCJA: FILTROWANIE UCZESTNIKÓW ---
+    print("--- EXPERIMENT: Filtering for Female Participants Only ---")
+    SURVEY_FILE = os.path.join(DATA_FOLDER, "Ankiety.xlsx")
+    KOLUMNA_UUID = 'UUID'
+    KOLUMNA_PLEC = 'Płeć'
+
+    try:
+        df_survey = pd.read_excel(SURVEY_FILE)
+        df_survey[KOLUMNA_UUID] = df_survey[KOLUMNA_UUID].astype(str).str.lower()
+
+        female_uuids = df_survey[df_survey[KOLUMNA_PLEC] == 'K'][KOLUMNA_UUID].tolist()
+        print(f"Found {len(female_uuids)} female participants in survey.")
+    except Exception as e:
+        print(f"BŁĄD: Nie mogłem wczytać lub przetworzyć Ankiety.xlsx: {e}")
+        exit()
+    # --- KONIEC NOWEJ SEKCJI ---
+
+    # Krok 1: Użycie naszej klasy, ale z przefiltrowaną listą uczestników
+    print("--- Step 1: Loading data for FEMALE participants ---")
+    data_loader = EEGDataLoader(DATA_FOLDER)
+
+    # --- MODYFIKACJA: Nadpisujemy listę uczestników ---
+    original_participant_count = len(data_loader.participants)
+    data_loader.participants = [
+        p_folder for p_folder in data_loader.participants
+        if any(uuid in p_folder.lower() for uuid in female_uuids)
+    ]
+    print(
+        f"Filtered participant list: running on {len(data_loader.participants)} / {original_participant_count} participants.")
+
+    X, y = data_loader.get_all_data()
+
+    if X.shape[0] == 0:
+        print("\nNo data was loaded. Exiting.")
+    else:
+        print(f"\n--- Total dataset loaded. X shape: {X.shape}, y shape: {y.shape} ---")
+
+        # Krok 2: Podział danych
+        print("\n--- Step 2: Splitting data into train and test sets ---")
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.3, random_state=42, stratify=y
+        )
+        print(f"Training set size: {X_train.shape[0]} samples")
+        print(f"Test set size: {X_test.shape[0]} samples")
+
+        # Krok 3: Trening modelu (wracamy do Random Forest)
+        print("\n--- Step 3: Training model (Random Forest) on FEMALE data ---")
+        model = make_pipeline(
+            StandardScaler(),
+            RandomForestClassifier(n_estimators=100, random_state=42, class_weight='balanced')
+        )
+        model.fit(X_train, y_train)
+        print("Model training complete.")
+
+        # Krok 4: Ocena modelu
+        print("\n--- Step 4: Final model evaluation ---")
+        y_pred = model.predict(X_test)
+        accuracy = accuracy_score(y_test, y_pred)
+        print(f"\nAccuracy on Test Set (FEMALE ONLY): {accuracy:.2f} ({accuracy * 100:.2f}%)")
+        print("\nClassification Report:")
+        print(classification_report(y_test, y_pred, target_names=['honest (0)', 'deceitful (1)']))
+
+        print("\n--- Displaying Confusion Matrix for the final model ---")
+        cm = confusion_matrix(y_test, y_pred)
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['honest', 'deceitful'])
+        disp.plot()
+        plt.title("Final Confusion Matrix (Random Forest - FEMALE ONLY)")
+        plt.show()

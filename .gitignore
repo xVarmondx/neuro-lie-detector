@@ -1,8 +1,5 @@
 # created by virtualenv automatically
 .venv/
-dataset/
-old/
-old1/
 # created by virtualenv automatically
 working/
 working2/
@@ -14,12 +11,6 @@ train_copy.py
 train_history.json
 PyCharmMiscProject.iml
 best_model_weights.pth
-old_1/
-old_data_analysis/
-notebooks/notebook.ipynb
-exploration.py
-main.py
-preprocessing.py
 
 # Virtual environments
 venv/
@@ -49,7 +40,7 @@ dist/
 *.log
 
 # Test / coverage
-htmlcov/
+htmlcov/gi
 .tox/
 .nox/
 .coverage
