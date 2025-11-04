@@ -10,9 +10,9 @@ from sklearn.ensemble import RandomForestClassifier # We are using Random Forest
 from sklearn.pipeline import make_pipeline
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, ConfusionMatrixDisplay
 import warnings
-from preprocessing import preprocessing
-from epoching import create_epochs
-from feature_extraction import extract_psd_features
+from old_1.preprocessing import preprocessing
+from old_1.epoching import create_epochs
+from old_1.feature_extraction import extract_psd_features
 
 warnings.filterwarnings("ignore", message="Concatenation of Annotations within Epochs is not supported yet")
 warnings.filterwarnings("ignore", category=RuntimeWarning, message="More events than default colors available")
@@ -20,6 +20,9 @@ warnings.filterwarnings("ignore", message="FigureCanvasAgg is non-interactive, a
 # warnings.filterwarnings("ignore", message="pick_types() is a legacy function...")
 
 DATA_FOLDER = "dataset"
+SURVEY_FILE = os.path.join(DATA_FOLDER, "Ankiety.xlsx")
+UUID_COLUMN = "UUID"
+GENDER_COLUMN = "Płeć"
 
 # Building event_id map. We need this map so that event IDs like PersonalDataField are consistent across all files.
 all_descriptions = set() # Set to store unique event descriptions
@@ -55,11 +58,43 @@ master_event_id = {desc: i+1 for i, desc in enumerate(sorted(list(all_descriptio
 print(f"Global map created with {len(master_event_id)} unique events")
 
 
-print(f"\n------------------------Processing data for ALL {len(participant_dirs)} participants------------------------")
+# Load demographic data and filter for females
+try:
+    df_survey = pd.read_excel(SURVEY_FILE)
+
+    # Converting UUID and gender to lowercase strings for easier comparison
+    df_survey[UUID_COLUMN] = df_survey[UUID_COLUMN].astype(str).str.lower()
+    df_survey[GENDER_COLUMN] = df_survey[GENDER_COLUMN].astype(str).str.lower()
+except Exception as e:
+    print(f"ERROR: Could not load or process {SURVEY_FILE}: {e}")
+    raise e # Stop if demographics are missing
+
+
+# Create a list of female UUIDs
+try:
+    female_uuids = df_survey[df_survey[GENDER_COLUMN] == 'k'][UUID_COLUMN].tolist()
+    print(f"Found {len(female_uuids)} female participants in the survey")
+
+    if not female_uuids:
+        print("WARNING: No female participants found matching the criteria")
+
+except KeyError:
+    print(f"ERROR: Column '{GENDER_COLUMN}' or '{UUID_COLUMN}' not found in the survey file")
+    raise
+
+# Filter the list of participant directories to include only females
+participant_dirs_filtered = [
+    p_folder for p_folder in participant_dirs
+    if any(uuid in p_folder.lower() for uuid in female_uuids)
+]
+print(f"Running the model on {len(participant_dirs_filtered)} female participants.")
+
+print("\n------------------------Processing data for female participants only------------------------")
 all_X = [] # List to store feature matrices
 all_y = [] # List to store corresponding labels
 
-for participant_folder_name in participant_dirs:
+# Loop through the filtered list of female participant folders
+for participant_folder_name in participant_dirs_filtered:
     print(f"--- Processing folder: {participant_folder_name} ---")
 
     participant_path = os.path.join(DATA_FOLDER, participant_folder_name)
@@ -110,54 +145,35 @@ X_final = np.concatenate(all_X, axis=0)
 y_final = np.concatenate(all_y, axis=0)
 print(f"Final X shape: {X_final.shape}, Final y shape: {y_final.shape}")
 
-# Split data into training and testing sets and test set(20%)
-X_temp, X_test, y_temp, y_test = train_test_split(
-    X_final, y_final, test_size=0.2, random_state=42, stratify=y_final
+# Split data into training and testing sets: 70% train, 30% test
+X_train, X_test, y_train, y_test = train_test_split(
+    X_final, y_final, test_size=0.3, random_state=42, stratify=y_final
 )
-
-val_size_fraction = 0.25
-X_train, X_val, y_train, y_val = train_test_split(X_temp, y_temp, test_size=val_size_fraction, random_state=42, stratify=y_temp)
 print(f"Training set size: {X_train.shape[0]}, Test set size: {X_test.shape[0]}")
-print(f"Total samples: {len(X_final)}")
-print(f"Training set size:   {len(X_train)} ({len(X_train)/len(X_final)*100:.1f}%)")
-print(f"Validation set size: {len(X_val)} ({len(X_val)/len(X_final)*100:.1f}%)")
-print(f"Test set size:       {len(X_test)} ({len(X_test)/len(X_final)*100:.1f}%)")
-
-
 
 # Define the model pipeline (Scaler + Random Forest)
 model = make_pipeline(
     StandardScaler(), # Scale features before training
-    RandomForestClassifier(n_estimators=200, max_depth=20, min_samples_leaf=1,random_state=42, class_weight='balanced')
+    RandomForestClassifier(n_estimators=200, max_depth=20, min_samples_leaf=1,random_state=42, class_weight='balanced') # Random Forest classifier
 )
 
 # Training model
 model.fit(X_train, y_train)
 
 # Make predictions on the unseen test data
-y_pred_val = model.predict(X_val)
-accuracy_val = accuracy_score(y_val, y_pred_val)
-print(f"Accuracy on Validation Set: {accuracy_val:.3f} ({accuracy_val*100:.1f}%)")
-print(classification_report(y_val, y_pred_val, target_names=['honest (0)', 'deceitful (1)']))
-cm_val = confusion_matrix(y_val, y_pred_val)
-disp_val = ConfusionMatrixDisplay(confusion_matrix=cm_val, display_labels=['honest', 'deceitful'])
+y_pred = model.predict(X_test)
 
-y_pred_test = model.predict(X_test)
-accuracy_test = accuracy_score(y_test, y_pred_test)
-print(f"\nFINAL ACCURACY (on Test Set): {accuracy_test:.3f} ({accuracy_test*100:.1f}%)")
-print(classification_report(y_test, y_pred_test, target_names=['honest (0)', 'deceitful (1)']))
-cm_test = confusion_matrix(y_test, y_pred_test)
-disp_test = ConfusionMatrixDisplay(confusion_matrix=cm_test, display_labels=['honest', 'deceitful'])
+# Calculate accuracy
+accuracy = accuracy_score(y_test, y_pred)
 
-fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+print(f"\nFinal accuracy (females only): {accuracy:.3f} ({accuracy*100:.1f}%)")
 
-# Plot validation matrix
-disp_val.plot(ax=axes[0])
-axes[0].set_title("Validation Set Confusion Matrix")
+# Display detailed classification report
+print(classification_report(y_test, y_pred, target_names=['honest (0)', 'deceitful (1)']))
 
-# Plot test matrix
-disp_test.plot(ax=axes[1])
-axes[1].set_title("Test Set Confusion Matrix")
-
-plt.tight_layout() # Adjust layout to prevent overlap
+# Display confusion matrix
+cm = confusion_matrix(y_test, y_pred)
+disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['honest', 'deceitful'])
+disp.plot()
+plt.title("Model females only")
 plt.show()
