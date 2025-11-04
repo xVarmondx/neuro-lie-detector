@@ -19,7 +19,6 @@ old_data_analysis/
 notebooks/notebook.ipynb
 exploration.py
 main.py
-preprocessing.py
 
 # Virtual environments
 venv/
