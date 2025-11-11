@@ -24,10 +24,11 @@ def extract_psd_features(epochs_data):
     freq_bands = {
         "theta": [4, 8],
         "alpha": [8, 13],
-        "beta": [13, 30]
+        "beta": [13, 30],
+        "gamma": [30, 40]
     }
 
-    spectrum = epochs_data.compute_psd(method='welch', fmin=4.0, fmax=30.0, picks='eeg', verbose=False)
+    spectrum = epochs_data.compute_psd(method='welch', fmin=4.0, fmax=40.0, picks='eeg', verbose=False)
     psds, freqs = spectrum.get_data(return_freqs=True)
 
     features_list = []
@@ -47,7 +48,7 @@ def extract_psd_features(epochs_data):
     features = np.array(features_list)
     labels = epochs_data.events[:, -1]
 
-    print(f"PSD Feature matrix X created with shape: {features.shape}")
+    #print(f"PSD Feature matrix X created with shape: {features.shape}")
 
     return features, labels
 

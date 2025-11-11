@@ -20,20 +20,24 @@ import glob
 import numpy as np
 import mne
 import matplotlib.pyplot as plt
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold, cross_val_score, cross_val_predict
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import GroupKFold, LeaveOneGroupOut
 from sklearn.pipeline import make_pipeline
 from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
 import warnings
+import tqdm
+from sklearn.svm import SVC
+from xgboost import XGBClassifier
 from src.preprocessing import preprocessing
 from src.epoching import create_epochs
 from src.feature_extraction import extract_psd_features
 
-warnings.filterwarnings("ignore", message="Concatenation of Annotations within Epochs is not supported yet")
-warnings.filterwarnings("ignore", category=RuntimeWarning, message="More events than default colors available")
-warnings.filterwarnings("ignore", message="FigureCanvasAgg is non-interactive, and thus cannot be shown")
-
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=RuntimeWarning)
+mne.set_log_level('ERROR')
 DATA_FOLDER = "dataset"
 
 all_descriptions = set()
@@ -59,9 +63,10 @@ print(f"Global map created with {len(master_event_id)} unique events.")
 
 all_X = []
 all_y = []
+all_groups = []
 
-for participant_folder_name in participant_dirs:
-    print(f"--- Processing folder: {participant_folder_name} ---")
+for i, participant_folder_name in enumerate(tqdm.tqdm(participant_dirs, desc="Processing Participants")):
+    #print(f"--- Processing folder: {participant_folder_name} ---")
 
     participant_path = os.path.join(DATA_FOLDER, participant_folder_name)
     honest_files = glob.glob(os.path.join(participant_path, "*HONEST*raw.fif"))
@@ -77,6 +82,7 @@ for participant_folder_name in participant_dirs:
                 X, _ = extract_psd_features(epochs_h)
                 all_X.append(X)
                 all_y.append(np.zeros(X.shape[0]))
+                all_groups.append(np.full(X.shape[0], i))
 
         for d_file in deceitful_files:
             raw_deceitful = mne.io.read_raw_fif(d_file, preload=True, verbose=False)
@@ -87,6 +93,7 @@ for participant_folder_name in participant_dirs:
                 X, _ = extract_psd_features(epochs_d)
                 all_X.append(X)
                 all_y.append(np.ones(X.shape[0]))
+                all_groups.append(np.full(X.shape[0], i))
 
     except Exception as e:
         print(f"Error processing {participant_folder_name}: {e}")
@@ -97,29 +104,51 @@ if not all_X:
 
 X_final = np.concatenate(all_X, axis=0)
 y_final = np.concatenate(all_y, axis=0)
+groups = np.concatenate(all_groups, axis=0)
+
 print(f"Final X shape: {X_final.shape}, Final y shape: {y_final.shape}")
 
-model = make_pipeline(
-    StandardScaler(),
-    RandomForestClassifier(
-        n_estimators=200,
-        max_depth=20,
-        min_samples_leaf=1,
-        random_state=42,
-        class_weight='balanced'
+models_to_test = {
+    "LogisticRegression": make_pipeline(
+        StandardScaler(),
+        LogisticRegression(max_iter=1000, class_weight='balanced', random_state=42)
+    ),
+    "RandomForest": make_pipeline(
+        StandardScaler(),
+        RandomForestClassifier(
+            n_estimators=200,
+            max_depth=20,
+            min_samples_leaf=1,
+            random_state=42,
+            class_weight='balanced'
+        )
+    ),
+    "SVM (RBF Kernel)": make_pipeline(
+        StandardScaler(),
+        SVC(class_weight='balanced', random_state=42, C=1.0)
+    ),
+    "XGBoost": make_pipeline(
+        StandardScaler(),
+        XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='logloss', n_estimators=100)
     )
-)
+}
 
-cv_strategy = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-scores = cross_val_score(model, X_final, y_final, cv=cv_strategy, scoring='accuracy', n_jobs=-1)
+n_subjets = len(np.unique(groups))
+print(f"Found {n_subjets} unique groups for validation")
 
-print(f"Mean Accuracy cv all participants: {scores.mean():.3f} (+/- {scores.std() * 2:.3f})")
+cv_strategy = LeaveOneGroupOut()
 
-y_pred_cv = cross_val_predict(model, X_final, y_final, cv=cv_strategy, n_jobs=-1)
+for model_name, model in models_to_test.items():
+    print(f"Testing {model_name}")
+    scores = cross_val_score(model, X_final, y_final, groups=groups ,cv=cv_strategy, scoring='accuracy', n_jobs=-1)
 
-print(classification_report(y_final, y_pred_cv, target_names=['honest (0)', 'deceitful (1)']))
+    print(f"Average accuracy: {np.mean(scores)*100:.2f}%")
+    print(f"Scores per subject: {scores}")
+    y_pred_cv = cross_val_predict(model, X_final, y_final, groups=groups, cv=cv_strategy, n_jobs=-1)
+    print(classification_report(y_final, y_pred_cv, target_names=['honest (0)', 'deceitful (1)']))
 
-cm = confusion_matrix(y_final, y_pred_cv)
-disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['honest', 'deceitful'])
-disp.plot()
-plt.show()
+    cm = confusion_matrix(y_final, y_pred_cv)
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['honest', 'deceitful'])
+    disp.plot()
+    plt.title("Confusion matrix")
+    plt.show()
